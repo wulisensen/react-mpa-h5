@@ -198,7 +198,16 @@ module.exports = function (webpackEnv) {
       : isEnvDevelopment && 'cheap-module-source-map',
     // These are the "entry points" to our application.
     // This means they will be the "root" imports that are included in JS bundle.
-    entry: paths.appIndexJs,
+    entry: {
+      index: [
+        isEnvDevelopment && require.resolve('react-dev-utils/webpackHotDevClient'),
+        paths.appIndexJs,
+      ].filter(Boolean),
+      sub: [
+        isEnvDevelopment && require.resolve('react-dev-utils/webpackHotDevClient'),
+        paths.appSubJs,
+      ].filter(Boolean),
+    },
     output: {
       // The build folder.
       path: paths.appBuild,
@@ -206,9 +215,12 @@ module.exports = function (webpackEnv) {
       pathinfo: isEnvDevelopment,
       // There will be one main bundle, and one file per asynchronous chunk.
       // In development, it does not produce real files.
+      // filename: isEnvProduction
+      //   ? 'static/js/[name].[contenthash:8].js'
+      //   : isEnvDevelopment && 'static/js/bundle.js',
       filename: isEnvProduction
         ? 'static/js/[name].[contenthash:8].js'
-        : isEnvDevelopment && 'static/js/bundle.js',
+        : isEnvDevelopment && 'static/js/[name].bundle.js',
       // There are also additional JS chunk files if you use code splitting.
       chunkFilename: isEnvProduction
         ? 'static/js/[name].[contenthash:8].chunk.js'
@@ -417,7 +429,7 @@ module.exports = function (webpackEnv) {
                     },
                   ],
                 ],
-                
+
                 plugins: [
                   isEnvDevelopment &&
                     shouldUseReactRefresh &&
@@ -451,7 +463,7 @@ module.exports = function (webpackEnv) {
                 cacheDirectory: true,
                 // See #6846 for context on why cacheCompression is disabled
                 cacheCompression: false,
-                
+
                 // Babel sourcemaps are needed for debugging into node_modules
                 // code.  Without the options below, debuggers like VSCode
                 // show incorrect code and set breakpoints on the wrong lines.
@@ -568,6 +580,8 @@ module.exports = function (webpackEnv) {
           {
             inject: true,
             template: paths.appHtml,
+            filename: 'index.html',
+            chunks: ['index']
           },
           isEnvProduction
             ? {
@@ -586,6 +600,33 @@ module.exports = function (webpackEnv) {
               }
             : undefined
         )
+      ),
+      new HtmlWebpackPlugin(
+        Object.assign(
+          {},
+          {
+            inject: true,
+            template: paths.appHtml,
+            filename: 'sub.html',
+            chunks: ['sub']
+          },
+          isEnvProduction
+            ? {
+              minify: {
+                removeComments: true,
+                collapseWhitespace: true,
+                removeRedundantAttributes: true,
+                useShortDoctype: true,
+                removeEmptyAttributes: true,
+                removeStyleLinkTypeAttributes: true,
+                keepClosingSlash: true,
+                minifyJS: true,
+                minifyCSS: true,
+                minifyURLs: true,
+              },
+            }
+            : undefined
+        ),
       ),
       // Inlines the webpack runtime script. This script is too small to warrant
       // a network request.
@@ -640,15 +681,17 @@ module.exports = function (webpackEnv) {
             manifest[file.name] = file.path;
             return manifest;
           }, seed);
-          const entrypointFiles = entrypoints.main.filter(
-            fileName => !fileName.endsWith('.map')
-          );
+          // 改造entrypointFiles
+          const entrypointFiles = {};
+          Object.keys(entrypoints).forEach(entrypoint => {
+            entrypointFiles[entrypoint] = entrypoints[entrypoint].filter(fileName => !fileName.endsWith('.map'));
+          });
 
           return {
             files: manifestFiles,
             entrypoints: entrypointFiles,
           };
-        },
+        }
       }),
       // Moment.js is an extremely popular library that bundles large locale files
       // by default due to how webpack interprets its code. This is a practical
